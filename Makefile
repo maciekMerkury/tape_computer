@@ -2,7 +2,7 @@ default: test
 
 .PHONY: test run full_build clean clear fmt
 
-all: test full_build fmt
+all: fmt test full_build
 
 clear:
 	clear
