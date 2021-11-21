@@ -1,41 +1,75 @@
-use crate::hardware::instruction::Instruction;
+use crate::hardware::Instruction;
+
 #[cfg(test)]
 mod tests;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum ParserError {}
+pub enum ParserError {
+    UnexpectedNewline(usize),
+}
 
 impl std::fmt::Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Ok(write!(
+        return Ok(write!(
             f,
             "ParseError: {}",
             match self {
                 _ => "bruh",
             }
-        )?)
+        )?);
     }
 }
 
 impl std::error::Error for ParserError {}
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+struct Variable {
+    start: u32,
+    length: u32,
+}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Token {
     Instruction(Instruction),
+    Label(u32),
+    Variable(Variable),
 }
 
 
-fn line_to_tokens(file: Vec<String>) -> Result<Vec<Token>, ParserError> {
-    let file = file.into_iter().filter(|x| x.is_ascii() && !(x.is_empty())).collect::<Vec<String>>();
-    let mut output: Vec<Token> = Vec::with_capacity(file.len());
-    for line in file {
+fn lines_to_token_unvalidated_stream(lines: &[String]) -> Result<Vec<Token>, ParserError> {
+    let mut output = Vec::<Token>::with_capacity(lines.len());
+
+    'lines: for (line_num, line) in lines.into_iter().enumerate() {
+        'tokens: for t in line.chars() {
+            if t == '\n' {
+                return Err(ParserError::UnexpectedNewline(line_num));
+            }
+
+            if t == ' ' || t == '\t' {
+                continue 'tokens;
+            }
+
+            if t == '#' {
+                continue 'lines;
+            }
+        }
     }
-    unimplemented!();
 
-    return Ok(output.into_iter().rev().collect());
+    output.shrink_to_fit();
+    unimplemented!();
+    return (Ok(output));
 }
 
-pub fn parse_file(file: Vec<String>) -> Result<Vec<Instruction>, ParserError> {
+fn validate_token_stream(tokens: Vec<Token>) -> Result<Vec<Token>, ParserError> {
     unimplemented!();
+}
+
+fn token_stream_to_instructions(tokens: Vec<Token>) -> Result<Vec<Instruction>, ParserError> {
+    unimplemented!();
+}
+
+pub fn lines_to_instructions(lines: &[String]) -> Result<Vec<Instruction>, ParserError> {
+    let tokens = lines_to_token_unvalidated_stream(lines)?;
+    let tokens = validate_token_stream(tokens)?;
+    return token_stream_to_instructions(tokens);
 }

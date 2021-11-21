@@ -1,8 +1,13 @@
 #[cfg(test)]
 mod tests;
 
-pub mod instruction;
-pub mod tape;
+// private mods, public imports to decrease the number of modules that the library exposes and
+// decrease the verbosity
+mod instruction;
+mod tape;
+
+pub use instruction::{Instruction, InstructionError};
+pub use tape::Tape;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum HardwareError {
