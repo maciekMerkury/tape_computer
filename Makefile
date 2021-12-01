@@ -1,4 +1,4 @@
-default: test
+default: clear test
 
 .PHONY: test run full_build clean clear fmt
 
@@ -22,4 +22,7 @@ clean:
 
 fmt:
 	cargo fmt
+
+check:
+	cargo check
 
