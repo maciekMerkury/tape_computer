@@ -7,18 +7,22 @@ inst arg arg arg
 ```
 
 ## Comments:
-Start with # and go for the rest of the line
+No support for after-line comments, i.e. the comment must span the entire line
+Start with ; and go for the rest of the line
+Can be precedeed by whitespace
 
 ## Labels:
-Starts with .NAME
-The inside of the label must be enclosed by curly brackets
+Marked with .NAME
 Example: 
 ```
-.TEST {
-add 2137
-}
+.TEST
 ```
 
-## Variabels:
-TODO
-
+## Variables
+The whitespace betwenn '#' and "long"/"cell" is optional
+```
+#long l 2137
+# cell c 255
+add $l
+ret $c
+```
