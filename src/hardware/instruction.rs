@@ -2,36 +2,43 @@
 // the advantage of counting from 1 is that when empty memory is encountered, we know that it's
 // empty
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[repr(u8)]
 pub enum Instruction {
-    /// Increments the value at the current pointed cell
+    /// Increments the value pointed to by TP
     Increment,
-
-    /// Decrements the value at the current pointed cell
+    /// Decrements the value pointed to by TP
     Decrement,
-
-    /// Negates the pointed cell
-    Negate,
-
-    /// Adds the pointed cell to the cell at position, the result is stored in pointed cell
+    /// Adds the values pointed to by TP and u32, stores the result in TP
     Add(u32),
 
-    /// Moves the tape pointer to the cell
-    MovePointer(u32),
+    /// Sets TP to u32
+    MoveTapePointer(u32),
+    /// Adds u32 to the TP
+    ShiftTPForwards(u32),
+    /// Substracts u32 from the TP
+    ShiftTPBackwards(u32),
 
-    /// moves the program_pointer to the cell
-    JumpPC(u32),
+    /// Sets PC to u32
+    MovePC(u32),
+    /// Sets PC to u32 if value pointed to by TP is zero
+    MovePCIfZero(u32),
 
-    /// JumpPCs to program_pointer if current pointed cell is zero
-    JumpPCIfZero(u32),
-
-    /// quits the entire instruction set and returns the u8 value
+    /// Return the u8
     Return(u8),
-
-    /// Returns the value at current pointed cell
+    /// Returns the value pointed to by TP
     ReturnCell,
 
-    /// Sets the value of the current pointed cell to u8 value
+    /// Sets the value pointed to by TP to u8
     SetCellValue(u8),
+    /// Copies the value pointed to by TP to u32
+    CopyCellValue(u32),
+
+    /// Negates the value pointed to by TP, stores the results in TP
+    Negate,
+    /// Ors the values pointed to by TP and u32, stores the results in TP
+    Or(u32),
+    /// Ands the values pointed to by TP and u32, stores the result in TP
+    And(u32),
 }
 
 impl std::convert::Into<u8> for Instruction {
@@ -40,14 +47,24 @@ impl std::convert::Into<u8> for Instruction {
         return match self {
             Increment => 1,
             Decrement => 2,
-            Negate => 3,
-            Add(_) => 4,
-            MovePointer(_) => 5,
-            JumpPC(_) => 6,
-            JumpPCIfZero(_) => 7,
-            Return(_) => 8,
-            ReturnCell => 9,
-            SetCellValue(_) => 10,
+            Add(_) => 3,
+
+            MoveTapePointer(_) => 4,
+            ShiftTPForwards(_) => 5,
+            ShiftTPBackwards(_) => 6,
+
+            MovePC(_) => 7,
+            MovePCIfZero(_) => 8,
+
+            Return(_) => 9,
+            ReturnCell => 10,
+
+            SetCellValue(_) => 11,
+            CopyCellValue(_) => 12,
+
+            Negate => 13,
+            Or(_) => 14,
+            And(_) => 15,
         };
     }
 }
@@ -81,20 +98,25 @@ impl std::convert::TryInto<Instruction> for ByteInstruction {
             Small(inst) => match inst {
                 1 => Ok(Increment),
                 2 => Ok(Decrement),
-                3 => Ok(Negate),
-                9 => Ok(ReturnCell),
+                10 => Ok(ReturnCell),
+                13 => Ok(Negate),
                 _ => Err(InstructionError::UnknownInstruction(inst)),
             },
-            Medium(inst, val) => match inst {
-                8 => Ok(Return(val)),
-                10 => Ok(SetCellValue(val)),
+            Medium(inst, u) => match inst {
+                9 => Ok(Return(u)),
+                11 => Ok(SetCellValue(u)),
                 _ => Err(InstructionError::UnknownInstruction(inst)),
             },
             Big(inst, arr) => match inst {
-                4 => Ok(Add(u32::from_le_bytes(arr))),
-                5 => Ok(MovePointer(u32::from_le_bytes(arr))),
-                6 => Ok(JumpPC(u32::from_le_bytes(arr))),
-                7 => Ok(JumpPCIfZero(u32::from_le_bytes(arr))),
+                3 => Ok(Add(u32::from_le_bytes(arr))),
+                4 => Ok(MoveTapePointer(u32::from_le_bytes(arr))),
+                5 => Ok(ShiftTPForwards(u32::from_le_bytes(arr))),
+                6 => Ok(ShiftTPBackwards(u32::from_le_bytes(arr))),
+                7 => Ok(MovePC(u32::from_le_bytes(arr))),
+                8 => Ok(MovePCIfZero(u32::from_le_bytes(arr))),
+                11 => Ok(CopyCellValue(u32::from_le_bytes(arr))),
+                14 => Ok(Or(u32::from_le_bytes(arr))),
+                15 => Ok(And(u32::from_le_bytes(arr))),
                 _ => Err(InstructionError::UnknownInstruction(inst)),
             },
         };
@@ -106,16 +128,12 @@ impl std::convert::Into<ByteInstruction> for Instruction {
         use ByteInstruction::*;
         use Instruction::*;
         return match self {
-            Increment => Small(self.into()),
-            Decrement => Small(self.into()),
-            Negate => Small(self.into()),
-            Add(v) => Big(self.into(), v.to_le_bytes()),
-            MovePointer(v) => Big(self.into(), v.to_le_bytes()),
-            JumpPC(v) => Big(self.into(), v.to_le_bytes()),
-            JumpPCIfZero(v) => Big(self.into(), v.to_le_bytes()),
-            Return(v) => Medium(self.into(), v),
-            ReturnCell => Small(self.into()),
-            SetCellValue(v) => Medium(self.into(), v),
+            Increment | Decrement | ReturnCell | Negate => Small(self.into()),
+            Return(u) | SetCellValue(u) => Medium(self.into(), u),
+            Add(v) | MoveTapePointer(v) | ShiftTPForwards(v) | ShiftTPBackwards(v) | MovePC(v)
+            | MovePCIfZero(v) | CopyCellValue(v) | Or(v) | And(v) => {
+                Big(self.into(), v.to_le_bytes())
+            },
         };
     }
 }

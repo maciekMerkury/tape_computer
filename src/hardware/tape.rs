@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, Default)]
 pub struct Tape {
     pub(super) tape: Vec<u8>,
-    pub(crate) pointer: u32,
+    pub(crate) tape_pointer: u32,
     pub(crate) program_counter: u32,
 }
 
@@ -9,7 +9,7 @@ impl Tape {
     pub fn new(size: u32) -> Self {
         Self {
             tape: vec![0; size as usize],
-            pointer: 0,
+            tape_pointer: 0,
             program_counter: 0,
         }
     }
@@ -19,7 +19,7 @@ impl Tape {
     }
 
     pub fn pointed_value(&self) -> u8 {
-        return self[self.pointer];
+        return self[self.tape_pointer];
     }
 
     // this is so increadibly shit
@@ -27,7 +27,7 @@ impl Tape {
     // This should absolutely work without the copy
     pub fn pointed_value_mut(&mut self) -> &mut u8 {
         // why
-        let p = self.pointer;
+        let p = self.tape_pointer;
         return &mut self[p];
     }
 
@@ -88,8 +88,8 @@ impl Tape {
         use super::instruction::Instruction::*;
         use super::HardwareError;
 
-        if self.pointer >= self.len() {
-            return Err(HardwareError::PointerOutOfBounds(self.pointer));
+        if self.tape_pointer >= self.len() {
+            return Err(HardwareError::PointerOutOfBounds(self.tape_pointer));
         }
         if self.program_counter >= self.len() {
             return Err(HardwareError::PCOutOfBound(self.program_counter));
@@ -97,9 +97,10 @@ impl Tape {
 
         match inst {
             Increment => {
-                if self.pointed_value() == 255 {
+                let (v, b) = self.pointed_value().overflowing_add(1);
+                if b {
                     return Err(HardwareError::InvalidMathsOperation(
-                        self.pointer,
+                        self.tape_pointer,
                         self.pointed_value(),
                         1,
                     ));
@@ -107,55 +108,98 @@ impl Tape {
                 *self.pointed_value_mut() += 1;
             },
             Decrement => {
-                if self.pointed_value() == 0 {
+                let (v, b) = self.pointed_value().overflowing_sub(1);
+                if b {
                     return Err(HardwareError::InvalidMathsOperation(
-                        self.pointer,
+                        self.tape_pointer,
                         self.pointed_value(),
-                        -1,
+                        1,
                     ));
                 }
                 *self.pointed_value_mut() -= 1;
-            },
-            Negate => {
-                *self.pointed_value_mut() != self.pointed_value();
             },
             Add(ptr) => {
                 if !(ptr < self.len()) {
                     return Err(HardwareError::PointerOutOfBounds(ptr));
                 }
-                *self.pointed_value_mut() += self[ptr];
+                let (v, b) = self.pointed_value().overflowing_add(self[ptr]);
+                if b {
+                    return Err(HardwareError::InvalidMathsOperation(
+                        self.tape_pointer,
+                        self.pointed_value(),
+                        1,
+                    ));
+                }
+                *self.pointed_value_mut() = v;
             },
-            MovePointer(ptr) => {
+
+            MoveTapePointer(ptr) => {
                 if !(ptr < self.len()) {
                     return Err(HardwareError::PointerOutOfBounds(ptr));
                 }
-                self.pointer = ptr;
+                self.tape_pointer = ptr;
             },
-            JumpPC(ptr) => {
+            ShiftTPForwards(delta) => {
+                if !(self.tape_pointer + delta < self.len()) {
+                    return Err(HardwareError::PointerOutOfBounds(self.tape_pointer + delta));
+                }
+                self.tape_pointer += delta;
+            },
+            ShiftTPBackwards(delta) => {
+                if delta > self.tape_pointer {
+                    return Err(HardwareError::PointerOutOfBounds(self.tape_pointer - delta));
+                }
+                self.tape_pointer -= delta;
+            },
+
+            MovePC(ptr) => {
                 if !(ptr < self.len()) {
-                    return Err(HardwareError::PCOutOfBound(ptr));
+                    return Err(HardwareError::PointerOutOfBounds(ptr));
                 }
                 self.program_counter = ptr;
             },
-            JumpPCIfZero(ptr) => {
+            MovePCIfZero(ptr) => {
                 if !(ptr < self.len()) {
-                    return Err(HardwareError::PCOutOfBound(ptr));
+                    return Err(HardwareError::PointerOutOfBounds(ptr));
                 }
                 if self.pointed_value() == 0 {
                     self.program_counter = ptr;
                 }
             },
+
             Return(v) => return Ok(Some(v)),
             ReturnCell => return Ok(Some(self.pointed_value())),
+
             SetCellValue(v) => *self.pointed_value_mut() = v,
+            CopyCellValue(ptr) => {
+                if !(ptr < self.len()) {
+                    return Err(HardwareError::PointerOutOfBounds(ptr));
+                }
+                *self.pointed_value_mut() = self[ptr];
+            },
+
+            Negate => *self.pointed_value_mut() = !self.pointed_value(),
+            Or(ptr) => {
+                if !(ptr < self.len()) {
+                    return Err(HardwareError::PointerOutOfBounds(ptr));
+                }
+                *self.pointed_value_mut() |= self[ptr];
+            },
+            And(ptr) => {
+                if !(ptr < self.len()) {
+                    return Err(HardwareError::PointerOutOfBounds(ptr));
+                }
+                *self.pointed_value_mut() &= self[ptr];
+            },
         }
 
         // peak rust
         self.program_counter += match inst {
-            JumpPC(_) | JumpPCIfZero(_) => 0,
+            MovePC(_) | MovePCIfZero(_) => 0,
             Increment | Decrement | Negate => 1,
             SetCellValue(_) => 2,
-            MovePointer(_) | Add(_) => 5,
+            MoveTapePointer(_) | Add(_) | ShiftTPForwards(_) | ShiftTPBackwards(_)
+            | CopyCellValue(_) | Or(_) | And(_) => 5,
             Return(_) | ReturnCell => unreachable!(),
         };
         println!("execute PC: {}", self.program_counter);
@@ -164,43 +208,47 @@ impl Tape {
     }
 
     pub fn run(&mut self) -> Result<u8, super::HardwareError> {
-        //unimplemented!("run for tape");
         use super::instruction::Instruction::{self, *};
         use super::HardwareError;
 
         let mut pc: u32;
+        let mut instruction: Instruction;
         // TODO: do actuall checks and
         'runtime: loop {
             pc = self.program_counter;
 
-            match self.execute_instruction(match self.pointed_program() {
-                1 => Increment,
-                2 => Decrement,
-                3 => Negate,
-                4 => Add(u32::from_le_bytes(
-                    self[(pc as usize + 1)..(pc as usize + 5)].try_into()?,
-                )),
-                5 => MovePointer(u32::from_le_bytes(
-                    self[(pc as usize + 1)..(pc as usize + 5)].try_into()?,
-                )),
-                6 => JumpPC(u32::from_le_bytes(
-                    self[(pc as usize + 1)..(pc as usize + 5)].try_into()?,
-                )),
-                7 => JumpPCIfZero(u32::from_le_bytes(
-                    self[(pc as usize + 1)..(pc as usize + 5)].try_into()?,
-                )),
-                8 => Return(self[pc + 1]),
-                9 => ReturnCell,
-                10 => SetCellValue(self[pc + 1]),
+            instruction = match self.pointed_program() {
+                1   => Increment,
+                2   => Decrement,
+                3   => Add(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+
+                4   => MoveTapePointer(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+                5   => ShiftTPForwards(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+                6   => ShiftTPBackwards(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+
+                7   => MovePC(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+                8   => MovePCIfZero(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+
+                9   => Return(self[pc + 1]),
+                10  => ReturnCell,
+
+                11  => SetCellValue(self[pc + 1]),
+                12  => CopyCellValue(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+
+                13  => Negate,
+                14  => Or(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+                15  => And(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+
                 _ => {
                     return Err(HardwareError::InvalidInstruction(
                         pc,
                         self.pointed_program(),
                     ))
                 },
-            })? {
-                None => {},
-                Some(ret) => return Ok(ret),
+            };
+
+            if let Some(ret) = self.execute_instruction(instruction)? {
+                return Ok(ret);
             }
         }
         unreachable!();
@@ -219,9 +267,9 @@ impl std::ops::IndexMut<u32> for Tape {
     }
 }
 
-impl std::ops::Index<std::ops::Range<usize>> for Tape {
+impl std::ops::Index<std::ops::Range<u32>> for Tape {
     type Output = [u8];
-    fn index(&self, range: std::ops::Range<usize>) -> &Self::Output {
-        return &self.tape[range];
+    fn index(&self, range: std::ops::Range<u32>) -> &Self::Output {
+        return &self.tape[(range.start as usize)..(range.end as usize)];
     }
 }
