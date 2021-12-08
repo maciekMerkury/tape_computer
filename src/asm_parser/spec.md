@@ -18,11 +18,11 @@ Example:
 .TEST
 ```
 
-## Variables
-The whitespace betwenn '#' and "long"/"cell" is optional
+## Constants
+The whitespace betwenn '#' and "ptr"/"cell" is optional
 ```
-#long l 2137
+#ptr l 2137
 # cell c 255
-add $l
-ret $c
+add l
+ret c
 ```
