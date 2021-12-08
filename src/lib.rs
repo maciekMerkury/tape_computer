@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+#![feature(string_remove_matches)]
 #[cfg(test)]
 mod tests;
 
