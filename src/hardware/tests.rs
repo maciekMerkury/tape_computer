@@ -77,6 +77,7 @@ fn tape_run() {
         Increment,
         MoveTapePointer(end - 2),
         Add(end - 1),
+        Negate,
         ReturnCell,
     ];
     let mut start_index: u32 = 0;
@@ -88,5 +89,5 @@ fn tape_run() {
     let result = tape.run().unwrap();
 
     println!("{}", result);
-    assert!(result == 5);
+    assert!(result == 250);
 }

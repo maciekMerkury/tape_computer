@@ -41,6 +41,12 @@ pub enum Instruction {
     And(u32),
 }
 
+impl Instruction {
+    pub(crate) fn to_byte_instruction(&self) -> ByteInstruction {
+        return self.into();
+    }
+}
+
 impl std::convert::Into<u8> for Instruction {
     fn into(self) -> u8 {
         use Instruction::*;
@@ -133,6 +139,21 @@ impl std::convert::Into<ByteInstruction> for Instruction {
             Add(v) | MoveTapePointer(v) | ShiftTPForwards(v) | ShiftTPBackwards(v) | MovePC(v)
             | MovePCIfZero(v) | CopyCellValue(v) | Or(v) | And(v) => {
                 Big(self.into(), v.to_le_bytes())
+            },
+        };
+    }
+}
+
+impl std::convert::Into<ByteInstruction> for &Instruction {
+    fn into(self) -> ByteInstruction {
+        use ByteInstruction::*;
+        use Instruction::*;
+        return match *self {
+            Increment | Decrement | ReturnCell | Negate => Small((*self).into()),
+            Return(u) | SetCellValue(u) => Medium((*self).into(), u),
+            Add(v) | MoveTapePointer(v) | ShiftTPForwards(v) | ShiftTPBackwards(v) | MovePC(v)
+            | MovePCIfZero(v) | CopyCellValue(v) | Or(v) | And(v) => {
+                Big((*self).into(), v.to_le_bytes())
             },
         };
     }

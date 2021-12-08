@@ -14,6 +14,14 @@ impl Tape {
         }
     }
 
+    pub fn from_vector(vec: Vec<u8>) -> Self {
+        Self {
+            tape: vec,
+            tape_pointer: 0,
+            program_counter: 0,
+        }
+    }
+
     pub fn len(&self) -> u32 {
         return self.tape.len() as u32;
     }
@@ -42,7 +50,7 @@ impl Tape {
     ) -> Result<u32, super::HardwareError> {
         use super::instruction::ByteInstruction::*;
         use super::HardwareError;
-        println!("instruction: {:?}", inst);
+        //println!("instruction: {:?}", inst);
         let max = self.len() - 1;
         match inst {
             Big(ins, arr) => {
@@ -97,40 +105,43 @@ impl Tape {
 
         match inst {
             Increment => {
-                let (v, b) = self.pointed_value().overflowing_add(1);
-                if b {
-                    return Err(HardwareError::InvalidMathsOperation(
-                        self.tape_pointer,
-                        self.pointed_value(),
-                        1,
-                    ));
+                match self.pointed_value().checked_add(1) {
+                    None => {
+                        return Err(HardwareError::InvalidMathsOperation(
+                            self.tape_pointer,
+                            self.pointed_value(),
+                            1,
+                        ));
+                    },
+                    Some(v) => *self.pointed_value_mut() = v,
                 }
-                *self.pointed_value_mut() += 1;
             },
             Decrement => {
-                let (v, b) = self.pointed_value().overflowing_sub(1);
-                if b {
-                    return Err(HardwareError::InvalidMathsOperation(
-                        self.tape_pointer,
-                        self.pointed_value(),
-                        1,
-                    ));
+                match self.pointed_value().checked_sub(1) {
+                    None => {
+                        return Err(HardwareError::InvalidMathsOperation(
+                            self.tape_pointer,
+                            self.pointed_value(),
+                            1,
+                        ));
+                    },
+                    Some(v) => *self.pointed_value_mut() = v,
                 }
-                *self.pointed_value_mut() -= 1;
             },
             Add(ptr) => {
                 if !(ptr < self.len()) {
                     return Err(HardwareError::PointerOutOfBounds(ptr));
                 }
-                let (v, b) = self.pointed_value().overflowing_add(self[ptr]);
-                if b {
-                    return Err(HardwareError::InvalidMathsOperation(
-                        self.tape_pointer,
-                        self.pointed_value(),
-                        1,
-                    ));
+                match self.pointed_value().checked_add(self[ptr]) {
+                    None => {
+                        return Err(HardwareError::InvalidMathsOperation(
+                            self.tape_pointer,
+                            self.pointed_value(),
+                            1,
+                        ));
+                    },
+                    Some(v) => *self.pointed_value_mut() = v,
                 }
-                *self.pointed_value_mut() = v;
             },
 
             MoveTapePointer(ptr) => {
@@ -202,7 +213,7 @@ impl Tape {
             | CopyCellValue(_) | Or(_) | And(_) => 5,
             Return(_) | ReturnCell => unreachable!(),
         };
-        println!("execute PC: {}", self.program_counter);
+        //println!("execute PC: {}", self.program_counter);
 
         return Ok(None);
     }

@@ -51,3 +51,18 @@ impl std::convert::From<std::array::TryFromSliceError> for HardwareError {
         return Self::TryFromSliceErrorWrapper;
     }
 }
+
+pub(crate) fn instructions_to_bytes(instructions: &[Instruction]) -> Vec<u8> {
+    use instruction::ByteInstruction::*;
+    // the vec will be at least instructions.len() long
+    let mut output = Vec::<u8>::with_capacity(instructions.len());
+    for inst in instructions.into_iter().map(|ins| ins.to_byte_instruction()) {
+        match inst {
+            Small(u)        => output.push(u),
+            Medium(u1, u2)  => output.extend([u1, u2].iter()),
+            Big(u, arr)     => output.extend([u, arr[0], arr[1], arr[2], arr[3], ].iter()),
+        }
+    }
+    
+    return output;
+}
