@@ -8,7 +8,7 @@ clear:
 	clear
 
 test:
-	cargo test
+	@cargo test
 
 run: 
 	cargo run
