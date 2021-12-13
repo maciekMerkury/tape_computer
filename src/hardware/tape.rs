@@ -1,12 +1,14 @@
+use crate::Word;
+
 #[derive(Debug, Clone, Default)]
 pub struct Tape {
     pub(super) tape: Vec<u8>,
-    pub(crate) tape_pointer: u32,
-    pub(crate) program_counter: u32,
+    pub(crate) tape_pointer: Word,
+    pub(crate) program_counter: Word,
 }
 
 impl Tape {
-    pub fn new(size: u32) -> Self {
+    pub fn new(size: Word) -> Self {
         Self {
             tape: vec![0; size as usize],
             tape_pointer: 0,
@@ -22,8 +24,8 @@ impl Tape {
         }
     }
 
-    pub fn len(&self) -> u32 {
-        return self.tape.len() as u32;
+    pub fn len(&self) -> Word {
+        return self.tape.len() as Word;
     }
 
     pub fn pointed_value(&self) -> u8 {
@@ -46,8 +48,8 @@ impl Tape {
     pub fn insert_instruction(
         &mut self,
         inst: super::instruction::ByteInstruction,
-        start: u32,
-    ) -> Result<u32, super::HardwareError> {
+        start: Word,
+    ) -> Result<Word, super::HardwareError> {
         use super::instruction::ByteInstruction::*;
         use super::HardwareError;
         //println!("instruction: {:?}", inst);
@@ -60,7 +62,7 @@ impl Tape {
 
                 self[start] = ins;
                 for (i, a) in arr.into_iter().enumerate() {
-                    self[start + i as u32 + 1] = a;
+                    self[start + i as Word + 1] = a;
                 }
 
                 return Ok(start + 5);
@@ -104,29 +106,25 @@ impl Tape {
         }
 
         match inst {
-            Increment => {
-                match self.pointed_value().checked_add(1) {
-                    None => {
-                        return Err(HardwareError::InvalidMathsOperation(
-                            self.tape_pointer,
-                            self.pointed_value(),
-                            1,
-                        ));
-                    },
-                    Some(v) => *self.pointed_value_mut() = v,
-                }
+            Increment => match self.pointed_value().checked_add(1) {
+                None => {
+                    return Err(HardwareError::InvalidMathsOperation(
+                        self.tape_pointer,
+                        self.pointed_value(),
+                        1,
+                    ));
+                },
+                Some(v) => *self.pointed_value_mut() = v,
             },
-            Decrement => {
-                match self.pointed_value().checked_sub(1) {
-                    None => {
-                        return Err(HardwareError::InvalidMathsOperation(
-                            self.tape_pointer,
-                            self.pointed_value(),
-                            1,
-                        ));
-                    },
-                    Some(v) => *self.pointed_value_mut() = v,
-                }
+            Decrement => match self.pointed_value().checked_sub(1) {
+                None => {
+                    return Err(HardwareError::InvalidMathsOperation(
+                        self.tape_pointer,
+                        self.pointed_value(),
+                        1,
+                    ));
+                },
+                Some(v) => *self.pointed_value_mut() = v,
             },
             Add(ptr) => {
                 if !(ptr < self.len()) {
@@ -210,7 +208,7 @@ impl Tape {
             Increment | Decrement | Negate => 1,
             SetCellValue(_) => 2,
             MoveTapePointer(_) | Add(_) | ShiftTPForwards(_) | ShiftTPBackwards(_)
-            | CopyCellValue(_) | Or(_) | And(_) => 5,
+            | CopyCellValue(_) | Or(_) | And(_) => 1 + crate::WORD_SIZE as u16,
             Return(_) | ReturnCell => unreachable!(),
         };
         //println!("execute PC: {}", self.program_counter);
@@ -222,33 +220,33 @@ impl Tape {
         use super::instruction::Instruction::{self, *};
         use super::HardwareError;
 
-        let mut pc: u32;
+        let mut pc: Word;
         let mut instruction: Instruction;
         // TODO: do actuall checks and
         'runtime: loop {
             pc = self.program_counter;
 
             instruction = match self.pointed_program() {
-                1   => Increment,
-                2   => Decrement,
-                3   => Add(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+                1 => Increment,
+                2 => Decrement,
+                3 => Add(Word::from_le_bytes(self[(pc + 1)..(pc + 3)].try_into()?)),
 
-                4   => MoveTapePointer(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
-                5   => ShiftTPForwards(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
-                6   => ShiftTPBackwards(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+                4 => MoveTapePointer(Word::from_le_bytes(self[(pc + 1)..(pc + 3)].try_into()?)),
+                5 => ShiftTPForwards(Word::from_le_bytes(self[(pc + 1)..(pc + 3)].try_into()?)),
+                6 => ShiftTPBackwards(Word::from_le_bytes(self[(pc + 1)..(pc + 3)].try_into()?)),
 
-                7   => MovePC(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
-                8   => MovePCIfZero(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+                7 => MovePC(Word::from_le_bytes(self[(pc + 1)..(pc + 3)].try_into()?)),
+                8 => MovePCIfZero(Word::from_le_bytes(self[(pc + 1)..(pc + 3)].try_into()?)),
 
-                9   => Return(self[pc + 1]),
-                10  => ReturnCell,
+                9 => Return(self[pc + 1]),
+                10 => ReturnCell,
 
-                11  => SetCellValue(self[pc + 1]),
-                12  => CopyCellValue(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+                11 => SetCellValue(self[pc + 1]),
+                12 => CopyCellValue(Word::from_le_bytes(self[(pc + 1)..(pc + 3)].try_into()?)),
 
-                13  => Negate,
-                14  => Or(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
-                15  => And(u32::from_le_bytes(self[(pc + 1)..(pc + 5)].try_into()?)),
+                13 => Negate,
+                14 => Or(Word::from_le_bytes(self[(pc + 1)..(pc + 3)].try_into()?)),
+                15 => And(Word::from_le_bytes(self[(pc + 1)..(pc + 3)].try_into()?)),
 
                 _ => {
                     return Err(HardwareError::InvalidInstruction(
@@ -266,21 +264,21 @@ impl Tape {
     }
 }
 
-impl std::ops::Index<u32> for Tape {
+impl std::ops::Index<Word> for Tape {
     type Output = u8;
-    fn index(&self, i: u32) -> &Self::Output {
+    fn index(&self, i: Word) -> &Self::Output {
         return &self.tape[i as usize];
     }
 }
-impl std::ops::IndexMut<u32> for Tape {
-    fn index_mut(&mut self, i: u32) -> &mut Self::Output {
+impl std::ops::IndexMut<Word> for Tape {
+    fn index_mut(&mut self, i: Word) -> &mut Self::Output {
         return &mut self.tape[i as usize];
     }
 }
 
-impl std::ops::Index<std::ops::Range<u32>> for Tape {
+impl std::ops::Index<std::ops::Range<Word>> for Tape {
     type Output = [u8];
-    fn index(&self, range: std::ops::Range<u32>) -> &Self::Output {
+    fn index(&self, range: std::ops::Range<Word>) -> &Self::Output {
         return &self.tape[(range.start as usize)..(range.end as usize)];
     }
 }

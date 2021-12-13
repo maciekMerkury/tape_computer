@@ -1,8 +1,10 @@
+use crate::Word;
+
 #[test]
 fn tape_tests() {
     use crate::hardware::tape::*;
 
-    let size: u32 = 2137;
+    let size: Word = 2137;
     let mut t = Tape::new(size);
 
     assert!(t.len() == size);
@@ -31,7 +33,7 @@ fn insert_instructions() {
     use super::instruction::Instruction::*;
 
     let mut tape = super::tape::Tape::new(10);
-    let mut start_index = 0u32;
+    let mut start_index = 0;
 
     start_index = tape
         .insert_instruction(Increment.into(), start_index)
@@ -48,7 +50,7 @@ fn insert_instructions() {
     assert!(tape[2] == 1);
     // MovePointer
     assert!(tape[3] == 4);
-    // u32 = 10
+    // Word = 10
     assert!(tape[4] == 11);
     assert!(tape[5] == 0);
     assert!(tape[6] == 0);
@@ -65,8 +67,7 @@ fn tape_run() {
     use super::*;
     use instruction::Instruction::*;
 
-    let mut tape = tape::Tape::new(128);
-    let end = tape.len() - 1;
+    let end = 19 + 16 - 1;
     let instructions = vec![
         MoveTapePointer(end - 2),
         Increment,
@@ -80,11 +81,11 @@ fn tape_run() {
         Negate,
         ReturnCell,
     ];
-    let mut start_index: u32 = 0;
 
-    for inst in instructions.into_iter() {
-        start_index = tape.insert_instruction(inst.into(), start_index).unwrap();
-    }
+    let mut tape = crate::hardware::instructions_to_bytes(&instructions);
+    tape.append(&mut vec![0u8; 16]);
+
+    let mut tape = crate::hardware::tape::Tape::from_vector(tape);
 
     let result = tape.run().unwrap();
 

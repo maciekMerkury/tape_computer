@@ -1,21 +1,23 @@
+use crate::Word;
+
 #[cfg(test)]
 mod tests;
 
 // private mods, public imports to decrease the number of modules that the library exposes and
 // decrease the verbosity
-mod instruction;
-mod tape;
+pub(crate) mod instruction;
+pub(crate) mod tape;
 
 pub use instruction::{Instruction, InstructionError};
 pub use tape::Tape;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum HardwareError {
-    ByteInstructionToLong(instruction::ByteInstruction, u32),
-    PointerOutOfBounds(u32),
-    PCOutOfBound(u32),
-    InvalidMathsOperation(u32, u8, i8),
-    InvalidInstruction(u32, u8),
+    ByteInstructionToLong(instruction::ByteInstruction, Word),
+    PointerOutOfBounds(Word),
+    PCOutOfBound(Word),
+    InvalidMathsOperation(Word, u8, i8),
+    InvalidInstruction(Word, u8),
     TryFromSliceErrorWrapper,
 }
 
@@ -56,13 +58,16 @@ pub(crate) fn instructions_to_bytes(instructions: &[Instruction]) -> Vec<u8> {
     use instruction::ByteInstruction::*;
     // the vec will be at least instructions.len() long
     let mut output = Vec::<u8>::with_capacity(instructions.len());
-    for inst in instructions.into_iter().map(|ins| ins.to_byte_instruction()) {
+    for inst in instructions
+        .into_iter()
+        .map(|ins| ins.to_byte_instruction())
+    {
         match inst {
-            Small(u)        => output.push(u),
-            Medium(u1, u2)  => output.extend([u1, u2].iter()),
-            Big(u, arr)     => output.extend([u, arr[0], arr[1], arr[2], arr[3], ].iter()),
+            Small(u) => output.push(u),
+            Medium(u1, u2) => output.extend([u1, u2].iter()),
+            Big(u, arr) => output.extend([u, arr[0], arr[1]].iter()),
         }
     }
-    
+
     return output;
 }

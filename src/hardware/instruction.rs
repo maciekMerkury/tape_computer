@@ -1,6 +1,7 @@
 // TODO: think about whether the instruction should be counted from 1 or from 0
 // the advantage of counting from 1 is that when empty memory is encountered, we know that it's
 // empty
+use crate::Word;
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(u8)]
 pub enum Instruction {
@@ -8,20 +9,20 @@ pub enum Instruction {
     Increment,
     /// Decrements the value pointed to by TP
     Decrement,
-    /// Adds the values pointed to by TP and u32, stores the result in TP
-    Add(u32),
+    /// Adds the values pointed to by TP and Word, stores the result in TP
+    Add(Word),
 
-    /// Sets TP to u32
-    MoveTapePointer(u32),
-    /// Adds u32 to the TP
-    ShiftTPForwards(u32),
-    /// Substracts u32 from the TP
-    ShiftTPBackwards(u32),
+    /// Sets TP to Word
+    MoveTapePointer(Word),
+    /// Adds Word to the TP
+    ShiftTPForwards(Word),
+    /// Substracts Word from the TP
+    ShiftTPBackwards(Word),
 
-    /// Sets PC to u32
-    MovePC(u32),
-    /// Sets PC to u32 if value pointed to by TP is zero
-    MovePCIfZero(u32),
+    /// Sets PC to Word
+    MovePC(Word),
+    /// Sets PC to Word if value pointed to by TP is zero
+    MovePCIfZero(Word),
 
     /// Return the u8
     Return(u8),
@@ -30,15 +31,15 @@ pub enum Instruction {
 
     /// Sets the value pointed to by TP to u8
     SetCellValue(u8),
-    /// Copies the value pointed to by TP to u32
-    CopyCellValue(u32),
+    /// Copies the value pointed to by TP to Word
+    CopyCellValue(Word),
 
     /// Negates the value pointed to by TP, stores the results in TP
     Negate,
-    /// Ors the values pointed to by TP and u32, stores the results in TP
-    Or(u32),
-    /// Ands the values pointed to by TP and u32, stores the result in TP
-    And(u32),
+    /// Ors the values pointed to by TP and Word, stores the results in TP
+    Or(Word),
+    /// Ands the values pointed to by TP and Word, stores the result in TP
+    And(Word),
 }
 
 impl Instruction {
@@ -90,7 +91,7 @@ impl std::error::Error for InstructionError {}
 // i still hate this
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ByteInstruction {
-    Big(u8, [u8; 4]),
+    Big(u8, [u8; crate::WORD_SIZE]),
     Medium(u8, u8),
     Small(u8),
 }
@@ -114,15 +115,15 @@ impl std::convert::TryInto<Instruction> for ByteInstruction {
                 _ => Err(InstructionError::UnknownInstruction(inst)),
             },
             Big(inst, arr) => match inst {
-                3 => Ok(Add(u32::from_le_bytes(arr))),
-                4 => Ok(MoveTapePointer(u32::from_le_bytes(arr))),
-                5 => Ok(ShiftTPForwards(u32::from_le_bytes(arr))),
-                6 => Ok(ShiftTPBackwards(u32::from_le_bytes(arr))),
-                7 => Ok(MovePC(u32::from_le_bytes(arr))),
-                8 => Ok(MovePCIfZero(u32::from_le_bytes(arr))),
-                11 => Ok(CopyCellValue(u32::from_le_bytes(arr))),
-                14 => Ok(Or(u32::from_le_bytes(arr))),
-                15 => Ok(And(u32::from_le_bytes(arr))),
+                3 => Ok(Add(Word::from_le_bytes(arr))),
+                4 => Ok(MoveTapePointer(Word::from_le_bytes(arr))),
+                5 => Ok(ShiftTPForwards(Word::from_le_bytes(arr))),
+                6 => Ok(ShiftTPBackwards(Word::from_le_bytes(arr))),
+                7 => Ok(MovePC(Word::from_le_bytes(arr))),
+                8 => Ok(MovePCIfZero(Word::from_le_bytes(arr))),
+                11 => Ok(CopyCellValue(Word::from_le_bytes(arr))),
+                14 => Ok(Or(Word::from_le_bytes(arr))),
+                15 => Ok(And(Word::from_le_bytes(arr))),
                 _ => Err(InstructionError::UnknownInstruction(inst)),
             },
         };
